@@ -23,19 +23,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 #
-
-from typing import List, Tuple, Optional, Union
-
-from autologging import logged
-
-DataFormatType = List[Tuple[Optional[str], Union[str, int]]]
-
-
-@logged
-class Packet:
-    ...
-
-
 from .responses import (ResponsePacket, SendUnitDataResponsePacket, SendRRDataResponsePacket, ListIdentityResponsePacket,
                         RegisterSessionResponsePacket, UnRegisterSessionResponsePacket, ReadTagServiceResponsePacket,
                         MultiServiceResponsePacket, ReadTagFragmentedServiceResponsePacket, GenericConnectedResponsePacket,
@@ -46,23 +33,6 @@ from .requests import (RequestPacket, SendUnitDataRequestPacket, SendRRDataReque
                        RegisterSessionRequestPacket, UnRegisterSessionRequestPacket, ReadTagServiceRequestPacket,
                        MultiServiceRequestPacket, ReadTagFragmentedServiceRequestPacket, WriteTagServiceRequestPacket,
                        WriteTagFragmentedServiceRequestPacket, GenericConnectedRequestPacket, GenericUnconnectedRequestPacket,
-                       request_path)
+                       request_path, REQUEST_MAP)
 
-from collections import defaultdict
-
-
-REQUEST_MAP = defaultdict(RequestPacket,
-{
-    'send_unit_data': SendUnitDataRequestPacket,
-    'send_rr_data': SendRRDataRequestPacket,
-    'register_session': RegisterSessionRequestPacket,
-    'unregister_session': UnRegisterSessionRequestPacket,
-    'list_identity': ListIdentityRequestPacket,
-    'read_tag': ReadTagServiceRequestPacket,
-    'multi_request': MultiServiceRequestPacket,
-    'read_tag_fragmented': ReadTagFragmentedServiceRequestPacket,
-    'write_tag': WriteTagServiceRequestPacket,
-    'write_tag_fragmented': WriteTagFragmentedServiceRequestPacket,
-    'generic_connected': GenericConnectedRequestPacket,
-    'generic_unconnected': GenericUnconnectedRequestPacket,
-})
+from .packet import Packet, DataFormatType

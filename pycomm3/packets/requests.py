@@ -26,23 +26,28 @@
 
 from reprlib import repr as _r
 
-from autologging import logged
+import logging
+from collections import defaultdict
 
-from . import Packet, DataFormatType
+from .packet import Packet, DataFormatType
 from . import (ResponsePacket, SendUnitDataResponsePacket, ReadTagServiceResponsePacket, RegisterSessionResponsePacket,
                UnRegisterSessionResponsePacket, ListIdentityResponsePacket, SendRRDataResponsePacket,
                MultiServiceResponsePacket, ReadTagFragmentedServiceResponsePacket, WriteTagServiceResponsePacket,
                WriteTagFragmentedServiceResponsePacket, GenericUnconnectedResponsePacket,
                GenericConnectedResponsePacket)
-from .. import CommError, RequestError
-from ..bytes_ import Pack, print_bytes_msg
-from ..const import (EncapsulationCommand, INSUFFICIENT_PACKETS, DataItem, AddressItem, EXTENDED_SYMBOL, ELEMENT_TYPE,
+from pycomm3.custom_exceptions import CommError, RequestError
+from pycomm3.bytes_ import Pack, print_bytes_msg
+from pycomm3.const import (EncapsulationCommand, INSUFFICIENT_PACKETS, DataItem, AddressItem, EXTENDED_SYMBOL, ELEMENT_TYPE,
                      TagService, CLASS_TYPE, INSTANCE_TYPE, DataType, DataTypeSize, ConnectionManagerService,
                      ClassCode, CommonService, STRUCTURE_READ_REPLY, PRIORITY, TIMEOUT_TICKS, ATTRIBUTE_TYPE)
 
 
-@logged
+
 class RequestPacket(Packet):
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
+
     _message_type = None
     _address_type = None
     _timeout = b'\x0a\x00'  # 10
@@ -113,7 +118,7 @@ class RequestPacket(Packet):
                 """
         try:
             if self.VERBOSE_DEBUG:
-                self.__log.debug(print_bytes_msg(message, '>>> SEND >>>'))
+                self.logger.debug(print_bytes_msg(message, '>>> SEND >>>'))
             self._plc._sock.send(message)
         except Exception as e:
             raise CommError(e)
@@ -129,19 +134,19 @@ class RequestPacket(Packet):
             raise CommError(e)
         else:
             if self.VERBOSE_DEBUG:
-                self.__log.debug(print_bytes_msg(reply, '<<< RECEIVE <<<'))
+                self.logger.debug(print_bytes_msg(reply, '<<< RECEIVE <<<'))
             return reply
 
     def send(self) -> ResponsePacket:
         if not self.error:
             self._send(self._build_request())
-            self.__log.debug(f'Sent: {self!r}')
+            self.logger.debug(f'Sent: {self!r}')
             reply = self._receive()
             response = self._response_class(reply, *self._response_args, **self._response_kwargs)
         else:
             response = self._response_class(*self._response_args, **self._response_kwargs)
             response._error = self.error
-        self.__log.debug(f'Received: {response!r}')
+        self.logger.debug(f'Received: {response!r}')
         return response
 
     def __repr__(self):
@@ -150,8 +155,13 @@ class RequestPacket(Packet):
     __str__ = __repr__
 
 
-@logged
+
 class SendUnitDataRequestPacket(RequestPacket):
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
+
+
     _message_type = DataItem.connected
     _address_type = AddressItem.connection
     _response_class = SendUnitDataResponsePacket
@@ -162,8 +172,13 @@ class SendUnitDataRequestPacket(RequestPacket):
         self._msg = [Pack.uint(plc._sequence), ]
 
 
-@logged
+
 class ReadTagServiceRequestPacket(SendUnitDataRequestPacket):
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
+
+
     type_ = 'read'
     _response_class = ReadTagServiceResponsePacket
 
@@ -190,21 +205,26 @@ class ReadTagServiceRequestPacket(SendUnitDataRequestPacket):
     def send(self):
         if not self.error:
             self._send(self._build_request())
-            self.__log.debug(f'Sent: {self!r}')
+            self.logger.debug(f'Sent: {self!r}')
             reply = self._receive()
             response = ReadTagServiceResponsePacket(reply, elements=self.elements, tag_info=self.tag_info, tag=self.tag)
         else:
             response = ReadTagServiceResponsePacket(tag=self.tag)
             response._error = self.error
-        self.__log.debug(f'Received: {response!r}')
+        self.logger.debug(f'Received: {response!r}')
         return response
 
     def __repr__(self):
         return f'{self.__class__.__name__}(tag={self.tag!r}, elements={self.elements!r})'
 
 
-@logged
+
 class ReadTagFragmentedServiceRequestPacket(SendUnitDataRequestPacket):
+    
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
+
+
     type_ = 'read'
     _response_class = ReadTagFragmentedServiceResponsePacket
 
@@ -233,10 +253,10 @@ class ReadTagFragmentedServiceRequestPacket(SendUnitDataRequestPacket):
                                  Pack.uint(self.elements),
                                  Pack.dint(offset)])
                 self._send(self._build_request())
-                self.__log.debug(f'Sent: {self!r} (offset={offset})')
+                self.logger.debug(f'Sent: {self!r} (offset={offset})')
                 reply = self._receive()
                 response = ReadTagFragmentedServiceResponsePacket(reply, self.tag_info, self.elements)
-                self.__log.debug(f'Received: {response!r}')
+                self.logger.debug(f'Received: {response!r}')
                 responses.append(response)
                 if response.service_status == INSUFFICIENT_PACKETS:
                     offset += len(response.bytes_)
@@ -247,20 +267,25 @@ class ReadTagFragmentedServiceRequestPacket(SendUnitDataRequestPacket):
                 final_response = responses[-1]
                 final_response.bytes_ = b''.join(resp.bytes_ for resp in responses)
                 final_response.parse_bytes()
-                self.__log.debug(f'Reassembled Response: {final_response!r}')
+                self.logger.debug(f'Reassembled Response: {final_response!r}')
                 return final_response
 
         failed_response = ReadTagServiceResponsePacket()
         failed_response._error = self.error or 'One or more fragment responses failed'
-        self.__log.debug(f'Reassembled Response: {failed_response!r}')
+        self.logger.debug(f'Reassembled Response: {failed_response!r}')
         return failed_response
 
     def __repr__(self):
         return f'{self.__class__.__name__}(tag={self.tag!r}, elements={self.elements!r})'
 
 
-@logged
+
 class WriteTagServiceRequestPacket(SendUnitDataRequestPacket):
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
+
+
     type_ = 'write'
     _response_class = WriteTagServiceResponsePacket
 
@@ -297,8 +322,13 @@ class WriteTagServiceRequestPacket(SendUnitDataRequestPacket):
         return f'{self.__class__.__name__}(tag={self.tag!r}, value={_r(self.value)}, elements={self.elements!r})'
 
 
-@logged
+
 class WriteTagFragmentedServiceRequestPacket(SendUnitDataRequestPacket):
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
+    
+
     type_ = 'write'
     _response_class = WriteTagFragmentedServiceResponsePacket
 
@@ -329,7 +359,7 @@ class WriteTagFragmentedServiceRequestPacket(SendUnitDataRequestPacket):
             if self.request_path is None:
                 self.error = 'Invalid Tag Request Path'
         except Exception as err:
-            self.__log.exception('Failed adding request')
+            self.logger.exception('Failed adding request')
             self.error = err
 
     def send(self):
@@ -357,27 +387,32 @@ class WriteTagFragmentedServiceRequestPacket(SendUnitDataRequestPacket):
                 ))
 
                 self._send(self._build_request())
-                self.__log.debug(f'Sent: {self!r} (part={i} offset={offset})')
+                self.logger.debug(f'Sent: {self!r} (part={i} offset={offset})')
                 reply = self._receive()
                 response = WriteTagFragmentedServiceResponsePacket(reply)
-                self.__log.debug(f'Received: {response!r}')
+                self.logger.debug(f'Received: {response!r}')
                 responses.append(response)
                 offset += len(segment_bytes)
                 self._msg = [Pack.uint(self._plc._sequence), ]
 
             if all(responses):
                 final_response = responses[-1]
-                self.__log.debug(f'Reassembled Response: {final_response!r}')
+                self.logger.debug(f'Reassembled Response: {final_response!r}')
                 return final_response
 
         failed_response = WriteTagFragmentedServiceResponsePacket()
         failed_response._error = self.error or 'One or more fragment responses failed'
-        self.__log.debug(f'Reassembled Response: {failed_response!r}')
+        self.logger.debug(f'Reassembled Response: {failed_response!r}')
         return failed_response
 
 
-@logged
+
 class MultiServiceRequestPacket(SendUnitDataRequestPacket):
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
+
+
     type_ = 'multi'
     _response_class = MultiServiceResponsePacket
 
@@ -431,7 +466,7 @@ class MultiServiceRequestPacket(SendUnitDataRequestPacket):
             else:
                 return False
         else:
-            self.__log.error(f'Failed to create request path for {tag}')
+            self.logger.error(f'Failed to create request path for {tag}')
             raise RequestError('Failed to create request path')
 
     def add_write(self, tag, value, elements=1, tag_info=None, bits_write=None):
@@ -455,14 +490,14 @@ class MultiServiceRequestPacket(SendUnitDataRequestPacket):
                 return False
 
         else:
-            self.__log.error(f'Failed to create request path for {tag}')
+            self.logger.error(f'Failed to create request path for {tag}')
             raise RequestError('Failed to create request path')
 
     def send(self):
         if not self._msg_errors:
             request = self._build_request()
             self._send(request)
-            self.__log.debug(f'Sent: {self!r}')
+            self.logger.debug(f'Sent: {self!r}')
             reply = self._receive()
             response = MultiServiceResponsePacket(reply, tags=self.tags)
         else:
@@ -470,7 +505,7 @@ class MultiServiceRequestPacket(SendUnitDataRequestPacket):
             response = MultiServiceResponsePacket()
             response._error = self.error
 
-        self.__log.debug(f'Received: {response!r}')
+        self.logger.debug(f'Received: {response!r}')
         return response
 
 
@@ -512,8 +547,13 @@ def _make_write_data_bit(tag_info, value, request_path):
         ))
 
 
-@logged
+
 class SendRRDataRequestPacket(RequestPacket):
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
+
+
     _message_type = DataItem.unconnected
     _address_type = AddressItem.uccm
     _encap_command = EncapsulationCommand.send_rr_data
@@ -523,8 +563,13 @@ class SendRRDataRequestPacket(RequestPacket):
         return super()._build_common_packet_format(addr_data=None)
 
 
-@logged
+
 class RegisterSessionRequestPacket(RequestPacket):
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
+
+
     _encap_command = EncapsulationCommand.register_session
     _response_class = RegisterSessionResponsePacket
 
@@ -532,8 +577,13 @@ class RegisterSessionRequestPacket(RequestPacket):
         return self.message
 
 
-@logged
+
 class UnRegisterSessionRequestPacket(RequestPacket):
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
+
+
     _encap_command = EncapsulationCommand.unregister_session
     _response_class = UnRegisterSessionResponsePacket
 
@@ -544,8 +594,13 @@ class UnRegisterSessionRequestPacket(RequestPacket):
         return b''
 
 
-@logged
+
 class ListIdentityRequestPacket(RequestPacket):
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
+
+
     _encap_command = EncapsulationCommand.list_identity
     _response_class = ListIdentityResponsePacket
 
@@ -732,3 +787,20 @@ def request_path(class_code: bytes, instance: bytes, attribute: bytes = b'', dat
         path.append(data)
 
     return Pack.epath(b''.join(path))
+
+
+REQUEST_MAP = defaultdict(RequestPacket,
+{
+    'send_unit_data': SendUnitDataRequestPacket,
+    'send_rr_data': SendRRDataRequestPacket,
+    'register_session': RegisterSessionRequestPacket,
+    'unregister_session': UnRegisterSessionRequestPacket,
+    'list_identity': ListIdentityRequestPacket,
+    'read_tag': ReadTagServiceRequestPacket,
+    'multi_request': MultiServiceRequestPacket,
+    'read_tag_fragmented': ReadTagFragmentedServiceRequestPacket,
+    'write_tag': WriteTagServiceRequestPacket,
+    'write_tag_fragmented': WriteTagFragmentedServiceRequestPacket,
+    'generic_connected': GenericConnectedRequestPacket,
+    'generic_unconnected': GenericUnconnectedRequestPacket,
+})

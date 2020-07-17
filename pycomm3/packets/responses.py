@@ -26,16 +26,19 @@
 from reprlib import repr as _r
 from itertools import tee, zip_longest, chain
 
-from autologging import logged
+import logging
 
-from . import Packet, DataFormatType
-from ..bytes_ import Unpack
-from ..const import (SUCCESS, INSUFFICIENT_PACKETS, TagService, SERVICE_STATUS, EXTEND_CODES, MULTI_PACKET_SERVICES,
+from .packet import Packet, DataFormatType
+from pycomm3.bytes_ import Unpack
+from pycomm3.const import (SUCCESS, INSUFFICIENT_PACKETS, TagService, SERVICE_STATUS, EXTEND_CODES, MULTI_PACKET_SERVICES,
                      DataType, STRUCTURE_READ_REPLY, DataTypeSize)
 
 
-@logged
+
 class ResponsePacket(Packet):
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
 
     def __init__(self, raw_data: bytes = None, *args, **kwargs):
         super().__init__()
@@ -98,8 +101,12 @@ class ResponsePacket(Packet):
     __str__ = __repr__
 
 
-@logged
+
 class SendUnitDataResponsePacket(ResponsePacket):
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
+
     def __init__(self, raw_data: bytes = None, *args, **kwargs):
         super().__init__(raw_data, *args, **kwargs)
 
@@ -127,8 +134,11 @@ class SendUnitDataResponsePacket(ResponsePacket):
         return f'{get_service_status(self.service_status)} - {get_extended_status(self.raw, 48)}'
 
 
-@logged
+
 class SendRRDataResponsePacket(ResponsePacket):
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
 
     def __init__(self, raw_data: bytes = None, *args, **kwargs):
         super().__init__(raw_data)
@@ -155,8 +165,12 @@ class SendRRDataResponsePacket(ResponsePacket):
         return f'{get_service_status(self.service_status)} - {get_extended_status(self.raw, 42)}'
 
 
-@logged
+
 class GenericConnectedResponsePacket(SendUnitDataResponsePacket):
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
+
     def __init__(self,  *args, data_format: DataFormatType, **kwargs):
         self.data_format = data_format
         self.value = None
@@ -175,8 +189,12 @@ class GenericConnectedResponsePacket(SendUnitDataResponsePacket):
                 self.value = None
 
 
-@logged
+
 class GenericUnconnectedResponsePacket(SendRRDataResponsePacket):
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
+
     def __init__(self,  *args, data_format: DataFormatType, **kwargs):
         self.data_format = data_format
         self.value = None
@@ -214,8 +232,12 @@ def _parse_data(data, fmt):
     return values
 
 
-@logged
+
 class ReadTagServiceResponsePacket(SendUnitDataResponsePacket):
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
+
     def __init__(self, raw_data: bytes = None, tag_info=None, elements=1, tag=None, *args,  **kwargs):
         self.value = None
         self.elements = elements
@@ -232,7 +254,7 @@ class ReadTagServiceResponsePacket(SendUnitDataResponsePacket):
             else:
                 self.value, self.data_type = None, None
         except Exception as err:
-            self.__log.exception('Failed parsing reply data')
+            self.logger.exception('Failed parsing reply data')
             self.value = None
             self._error = f'Failed to parse reply - {err}'
 
@@ -240,8 +262,12 @@ class ReadTagServiceResponsePacket(SendUnitDataResponsePacket):
         return f'{self.__class__.__name__}({self.data_type!r}, {_r(self.value)}, {self.service_status!r})'
 
 
-@logged
+
 class ReadTagFragmentedServiceResponsePacket(SendUnitDataResponsePacket):
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
+
     def __init__(self, raw_data: bytes = None, tag_info=None, elements=1, *args,  **kwargs):
         self.value = None
         self.elements = elements
@@ -267,7 +293,7 @@ class ReadTagFragmentedServiceResponsePacket(SendUnitDataResponsePacket):
             else:
                 self.value, self.data_type = None, None
         except Exception as err:
-            self.__log.exception('Failed parsing reply data')
+            self.logger.exception('Failed parsing reply data')
             self.value = None
             self._error = f'Failed to parse reply - {err}'
 
@@ -277,18 +303,23 @@ class ReadTagFragmentedServiceResponsePacket(SendUnitDataResponsePacket):
     __str__ = __repr__
 
 
-@logged
+
 class WriteTagServiceResponsePacket(SendUnitDataResponsePacket):
-    ...
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
 
 
-@logged
+
 class WriteTagFragmentedServiceResponsePacket(SendUnitDataResponsePacket):
-    ...
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
 
 
-@logged
+
 class MultiServiceResponsePacket(SendUnitDataResponsePacket):
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
 
     def __init__(self, raw_data: bytes = None, tags=None, *args, **kwargs):
         self.tags = tags
@@ -332,8 +363,11 @@ class MultiServiceResponsePacket(SendUnitDataResponsePacket):
         return f'{self.__class__.__name__}(values={_r(self.values)}, error={self.error!r})'
 
 
-@logged
+
 class RegisterSessionResponsePacket(ResponsePacket):
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
 
     def __init__(self, raw_data: bytes = None, *args, **kwargs):
         self.session = None
@@ -356,8 +390,11 @@ class RegisterSessionResponsePacket(ResponsePacket):
         return f'{self.__class__.__name__}(session={self.session!r}, error={self.error!r})'
 
 
-@logged
+
 class UnRegisterSessionResponsePacket(ResponsePacket):
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
 
     def _parse_reply(self):
         ...  # nothing to parse
@@ -369,8 +406,11 @@ class UnRegisterSessionResponsePacket(ResponsePacket):
         return 'UnRegisterSessionResponsePacket()'
 
 
-@logged
+
 class ListIdentityResponsePacket(ResponsePacket):
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
 
     def __init__(self, raw_data: bytes = None, *args, **kwargs):
         self.identity = None

@@ -25,14 +25,16 @@
 #
 
 import socket
-from autologging import logged
-from . import CommError
+import logging
+from .custom_exceptions import CommError
 from .const import HEADER_SIZE
 import struct
 
 
-@logged
 class Socket:
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
 
     def __init__(self, timeout=5.0):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

@@ -33,10 +33,9 @@ from functools import wraps
 from os import urandom
 from typing import Union, List, Tuple, Optional
 
-from autologging import logged
 
-from . import DataError, CommError
-from . import Tag, RequestError
+from .custom_exceptions import DataError, CommError, RequestError
+from .tag import Tag
 from .bytes_ import Pack, Unpack
 from .const import (TagService, EXTENDED_SYMBOL, PATH_SEGMENTS, CLASS_TYPE,
                     INSTANCE_TYPE, ConnectionManagerInstance, PRIORITY, ClassCode, DataType,
@@ -79,11 +78,14 @@ def with_forward_open(func):
     return wrapped
 
 
-@logged
+
 class LogixDriver:
     """
     An Ethernet/IP Client library for reading and writing tags in ControlLogix and CompactLogix PLCs.
     """
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(logging.NullHandler())
 
     def __init__(self, path: str, *args,  large_packets: bool = True, micro800: bool = False,
                  init_info: bool = True, init_tags: bool = True, init_program_tags: bool = False, **kwargs):
@@ -187,13 +189,13 @@ class LogixDriver:
         try:
             self.close()
         except CommError:
-            self.__log.exception('Error closing connection.')
+            self.logger.exception('Error closing connection.')
             return False
         else:
             if not exc_type:
                 return True
             else:
-                self.__log.exception('Unhandled Client Error', exc_info=(exc_type, exc_val, exc_tb))
+                self.logger.exception('Unhandled Client Error', exc_info=(exc_type, exc_val, exc_tb))
                 return False
 
     def __repr__(self):
@@ -353,7 +355,7 @@ class LogixDriver:
             self.attribs['cid'] = urandom(4)
             self.attribs['vsn'] = urandom(4)
             if self._register_session() is None:
-                self.__log.warning("Session not registered")
+                self.logger.warning("Session not registered")
                 return False
             return True
         except Exception as e:
@@ -378,10 +380,10 @@ class LogixDriver:
         response = request.send()
         if response:
             self._session = response.session
-            self.__log.debug(f"Session = {response.session} has been registered.")
+            self.logger.debug(f"Session = {response.session} has been registered.")
             return self._session
 
-        self.__log.warning('Session has not been registered.')
+        self.logger.warning('Session has not been registered.')
         return None
 
     def _forward_open(self):
@@ -438,7 +440,7 @@ class LogixDriver:
             self._target_cid = response.value[:4]
             self._target_is_connected = True
             return True
-        self.__log.warning(f"forward_open failed - {response.error}")
+        self.logger.warning(f"forward_open failed - {response.error}")
         return False
 
     def close(self):
@@ -453,14 +455,14 @@ class LogixDriver:
                 self._un_register_session()
         except Exception as err:
             errs.append(err)
-            self.__log.warning(f"Error on close() -> session Err: {err}")
+            self.logger.warning(f"Error on close() -> session Err: {err}")
 
         try:
             if self._sock:
                 self._sock.close()
         except Exception as err:
             errs.append(err)
-            self.__log.warning(f"close() -> _sock.close Err: {err}")
+            self.logger.warning(f"close() -> _sock.close Err: {err}")
 
         self._sock = None
         self._target_is_connected = False
@@ -513,7 +515,7 @@ class LogixDriver:
             self._target_is_connected = False
             return True
 
-        self.__log.warning(f"forward_close failed - {response.error}")
+        self.logger.warning(f"forward_close failed - {response.error}")
         return False
 
     @with_forward_open
@@ -737,7 +739,7 @@ class LogixDriver:
         elif response.service_status == INSUFFICIENT_PACKETS:
             last_instance = instance + 1
         else:
-            self.__log.warning('unknown status during _parse_instance_attribute_list')
+            self.logger.warning('unknown status during _parse_instance_attribute_list')
             last_instance = -1
 
         return last_instance
@@ -758,7 +760,7 @@ class LogixDriver:
                     rtn_name = name.replace('Routine:', '')
                     _program = self._info['programs'].get(program)
                     if _program is None:
-                        self.__log.error(f'Program {program} not defined in tag list')
+                        self.logger.error(f'Program {program} not defined in tag list')
                     else:
                         _program['routines'].append(rtn_name)
                     continue
@@ -951,7 +953,7 @@ class LogixDriver:
                     self._cache['id:udt'][instance_id] = data_type
                     self._data_types[data_type['name']] = data_type
             except Exception:
-                self.__log.exception('fuck')
+                self.logger.exception('fuck')
 
         return self._cache['id:udt'][instance_id]
 
@@ -1036,10 +1038,10 @@ class LogixDriver:
                             current_request.add_read(tag_data['plc_tag'], tag_data['elements'], tag_data['tag_info'])
                             requests.append(current_request)
                     except RequestError:
-                        self.__log.exception(f'Failed to build request for {tag} - skipping')
+                        self.logger.exception(f'Failed to build request for {tag} - skipping')
                         continue
             else:
-                self.__log.error(f'Skipping making request for {tag}, error: {tag_data.get("error")}')
+                self.logger.error(f'Skipping making request for {tag}, error: {tag_data.get("error")}')
                 continue
 
         return (r for r in requests if (r.type_ == 'multi' and r.tags) or r.type_ == 'read')
@@ -1060,7 +1062,7 @@ class LogixDriver:
 
             return request
 
-        self.__log.error(f'Skipping making request, error: {parsed_tag["error"]}')
+        self.logger.error(f'Skipping making request, error: {parsed_tag["error"]}')
         return None
 
     @with_forward_open
@@ -1151,7 +1153,7 @@ class LogixDriver:
                                                   tag_data['tag_info'])
 
                 except RequestError:
-                    self.__log.exception(f'Failed to build request for {tag} - skipping')
+                    self.logger.exception(f'Failed to build request for {tag} - skipping')
                     continue
 
         if bit_writes:
@@ -1163,7 +1165,7 @@ class LogixDriver:
                         requests.append(current_request)
                         current_request.add_write(tag, value, tag_info=bit_writes[tag]['tag_info'], bits_write=True)
                 except RequestError:
-                    self.__log.exception(f'Failed to build request for {tag} - skipping')
+                    self.logger.exception(f'Failed to build request for {tag} - skipping')
                     continue
 
         return (r for r in requests if (r.type_ == 'multi' and r.tags) or r.type_ == 'write')
@@ -1188,10 +1190,10 @@ class LogixDriver:
                     request.add(tag, value, tag_info=bit_writes[tag]['tag_info'], bits_write=True)
                     return request
                 except RequestError:
-                    self.__log.exception(f'Failed to build request for {tag} - skipping')
+                    self.logger.exception(f'Failed to build request for {tag} - skipping')
                     return None
         else:
-            self.__log.error(f'Skipping making request, error: {parsed_tag["error"]}')
+            self.logger.error(f'Skipping making request, error: {parsed_tag["error"]}')
             return None
 
     def _get_tag_info(self, base, attrs) -> Optional[dict]:
@@ -1214,7 +1216,7 @@ class LogixDriver:
                 return _recurse_attrs(attrs, data['data_type']['internal_tags'])
 
         except Exception as err:
-            self.__log.exception(f'Failed to lookup tag data for {base}, {attrs}')
+            self.logger.exception(f'Failed to lookup tag data for {base}, {attrs}')
             raise
 
     def _parse_requested_tags(self, tags):
@@ -1282,7 +1284,7 @@ class LogixDriver:
             try:
                 response = request.send()
             except Exception as err:
-                self.__log.exception('Error sending request')
+                self.logger.exception('Error sending request')
                 if request.type_ != 'multi':
                     results[_mkkey(r=request)] = Tag(request.tag, None, None, str(err))
                 else:

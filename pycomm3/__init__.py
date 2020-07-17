@@ -27,45 +27,9 @@
 __version_info__ = (0, 8, 1)
 __version__ = '.'.join(f'{x}' for x in __version_info__)
 
-from typing import NamedTuple, Any, Optional
-import logging
-from reprlib import repr as _r
-
-logger = logging.getLogger('pycomm3')
-logger.addHandler(logging.NullHandler())
-
-
-class PycommError(Exception):
-    ...
-
-
-class CommError(PycommError):
-    ...
-
-
-class DataError(PycommError):
-    ...
-
-
-class RequestError(PycommError):
-    ...
-
-
-class Tag(NamedTuple):
-    tag: str
-    value: Any
-    type: Optional[str] = None
-    error: Optional[str] = None
-
-    def __bool__(self):
-        return self.value is not None and self.error is None
-
-    def __str__(self):
-        return f'{self.tag}, {_r(self.value)}, {self.type}, {self.error}'
-
-    def __repr__(self):
-        return f"{self.__class__.__name__}(tag={self.tag!r}, value={self.value!r}, type={self.type!r}, error={self.error!r})"
 
 from .clx import LogixDriver
 from .const import CommonService, ClassCode, TagService, DataType, ConnectionManagerInstance, ConnectionManagerService
 from .bytes_ import Pack, Unpack
+from .custom_exceptions import *
+from .tag import Tag
