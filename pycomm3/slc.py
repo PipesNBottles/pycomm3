@@ -27,9 +27,10 @@
 import logging
 
 from pycomm3.custom_exceptions import CommError, DataError
-from pycomm3.utils.cip_base import CipBase
+from pycomm3.utils.cip_base import CipBase, with_forward_open, ReturnType
 from pycomm3.utils.utils import _parse_plc_info
 from pycomm3.const import ClassCode
+from pycomm3.tag import Tag
 
 class SLCDriver(CipBase):
     """
@@ -59,10 +60,51 @@ class SLCDriver(CipBase):
                 self.logger.exception('Unhandled Client Error', exc_info=(exc_type, exc_val, exc_tb))
                 return False
     
+    @with_forward_open
+    def read(self, *tags: str) -> ReturnType:
+        """
+        Read the value of tag(s).  Automatically will split tags into multiple requests by tracking the request and
+        response size.  Will use the multi-service request to group many tags into a single packet and also will automatically
+        use fragmented read requests if the response size will not fit in a single packet.  Supports arrays (specify element
+        count in using curly braces (array{10}).  Also supports full structure reading (when possible), return value
+        will be a dict of {attribute name: value}.
+
+        :param tags: one or many tags to read
+        :return: a single or list of ``Tag`` objects
+        """
+
+        parsed_requests = self._parse_requested_tags(tags)
+        requests = self._read_build_requests(parsed_requests)
+        read_results = self._send_requests(requests)
+
+        results = []
+
+        for tag in tags:
+            try:
+                request_data = parsed_requests[tag]
+                result = read_results[(request_data['plc_tag'], request_data['elements'])]
+                if request_data.get('bit') is None:
+                    results.append(result)
+                else:
+                    if result:
+                        typ, bit = request_data['bit']
+                        val = bool(result.value & 1 << bit) if typ == 'bit' else result.value[bit % 32]
+                        results.append(Tag(tag, val, 'BOOL', None))
+                    else:
+                        results.append(Tag(tag, None, None, result.error))
+            except Exception as err:
+                results.append(Tag(tag, None, None, f'Invalid tag request - {err}'))
+
+        if len(tags) > 1:
+            return results
+        else:
+            return results[0]
+    
     def get_plc_info(self) -> dict:
         """
         Reads basic information from the controller, returns it and stores it in the ``info`` property.
         """
+        raise NotImplementedError
         try:
             response = self.generic_message(
                 class_code=ClassCode.identity_object, instance=b'\x01',

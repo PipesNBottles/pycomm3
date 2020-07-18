@@ -23,6 +23,11 @@ from pycomm3.utils.utils import (_pack_structure, _bit_request, writable_value, 
 
 logging.basicConfig(level=logging.DEBUG)
 
+
+AtomicType = Union[int, float, bool, str]
+TagType = Union[AtomicType, List[AtomicType]]
+ReturnType = Union[Tag, List[Tag]]
+
 def with_forward_open(func):
     """Decorator to ensure a forward open request has been completed with the plc"""
 
@@ -338,6 +343,28 @@ class CipBase:
 
         self.logger.warning(f"forward_close failed - {response.error}")
         return False
+    
+    def _parse_requested_tags(self, tags):
+        requests = {}
+        for tag in tags:
+            parsed = {}
+            try:
+                parsed_request = self._parse_tag_request(tag)
+                if parsed_request is not None:
+                    plc_tag, bit, elements, tag_info = parsed_request
+                    parsed['plc_tag'] = plc_tag
+                    parsed['bit'] = bit
+                    parsed['elements'] = elements
+                    parsed['tag_info'] = tag_info
+                else:
+                    parsed['error'] = 'Failed to parse tag request'
+            except RequestError as err:
+                parsed['error'] = str(err)
+
+            finally:
+                requests[tag] = parsed
+        return requests
+
     
     def generic_message(self,
                         service: bytes,
