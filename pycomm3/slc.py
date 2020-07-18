@@ -41,7 +41,7 @@ class SLCDriver(CipBase):
         self.path = path
         self.init_tags = init_tags
         super().__init__(path=path, legacy=True)
-        self.attribs['extended forward open']: False
+        self.attribs['extended forward open'] = False
     
     def __enter__(self):
         self.open()
