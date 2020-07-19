@@ -180,6 +180,8 @@ class CipBase:
         response = request.send()
         if response:
             self._session = response.session
+            if self._legacy:
+                self._session = Unpack.dint(self._session[4:8])
             self.logger.debug(f"Session = {response.session} has been registered.")
             return self._session
 
@@ -266,6 +268,47 @@ class CipBase:
             Pack.uint(0x43f8),
             TRANSPORT_CLASS,
         ]
+
+        # forward_open_msg = [
+        #     FORWARD_OPEN,
+        #     pack_usint(2),
+        #     CLASS_ID["8-bit"],
+        #     CLASS_CODE["Connection Manager"],  # Volume 1: 5-1
+        #     INSTANCE_ID["8-bit"],
+        #     CONNECTION_MANAGER_INSTANCE['Open Request'],
+        #     PRIORITY,
+        #     TIMEOUT_TICKS,
+        #     pack_dint(0),
+        #     self.attribs['cid'],
+        #     self.attribs['csn'],
+        #     self.attribs['vid'],
+        #     self.attribs['vsn'],
+        #     TIMEOUT_MULTIPLIER,
+        #     '\x00\x00\x00',
+        #     pack_dint(self.attribs['rpi'] * 1000),
+        #     pack_uint(CONNECTION_PARAMETER['Default']),
+        #     pack_dint(self.attribs['rpi'] * 1000),
+        #     pack_uint(CONNECTION_PARAMETER['Default']),
+        #     TRANSPORT_CLASS,  # Transport Class
+        #     # CONNECTION_SIZE['Backplane'],
+        #     # pack_usint(self.attribs['backplane']),
+        #     # pack_usint(self.attribs['cpu slot']),
+        #     CLASS_ID["8-bit"],
+        #     CLASS_CODE["Message Router"],
+        #     INSTANCE_ID["8-bit"],
+        #     pack_usint(1)
+        # ]
+
+        # if self.__direct_connections:
+        #     forward_open_msg[20:1] = [
+        #         CONNECTION_SIZE['Direct Network'],
+        #     ]
+        # else:
+        #     forward_open_msg[20:3] = [
+        #         CONNECTION_SIZE['Backplane'],
+        #         pack_usint(self.attribs['backplane']),
+        #         pack_usint(self.attribs['cpu slot'])
+        #     ]
         
         return forward_open_msg
 
