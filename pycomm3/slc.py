@@ -37,11 +37,13 @@ class SLCDriver(CipBase):
     SLC/PLC_5 Implementation
     """
 
-    def __init__(self, path: str, init_tags: bool = True):
+    def __init__(self, path: str, init_tags: bool = False, init_info=False):
         self.path = path
         self.init_tags = init_tags
         super().__init__(path=path, legacy=True)
         self.attribs['extended forward open'] = False
+
+        self._forward_open()
     
     def __enter__(self):
         self.open()
