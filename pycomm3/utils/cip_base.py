@@ -260,9 +260,9 @@ class CipBase:
             self.attribs['vsn'],
             TIMEOUT_MULTIPLIER,
             b'\x00\x00\x00',
-            Pack.dint(5000),
+            Pack.dint(5000*1000),
             Pack.uint(0x43f8),
-            Pack.dint(5000),
+            Pack.dint(5000*1000),
             Pack.uint(0x43f8),
             TRANSPORT_CLASS,
         ]
