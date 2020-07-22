@@ -1,10 +1,11 @@
 import socket
 import itertools
+import re
 
 
 from pycomm3.bytes_ import Unpack, Pack
 from pycomm3.const import (VENDORS, KEYSWITCH, PRODUCT_TYPES, SUCCESS, STATES, READ_RESPONSE_OVERHEAD,
-                           PATH_SEGMENTS, BASE_TAG_BIT, DataTypeSize, DataType)
+                           PATH_SEGMENTS, BASE_TAG_BIT, DataTypeSize, DataType, PCCC_CT)
 from pycomm3.custom_exceptions import DataError, RequestError
 
 
@@ -322,3 +323,117 @@ def _create_tag(name, raw_tag):
             new_tag['bit_position'] = (raw_tag['symbol_type'] & 0b_0000_0111_0000_0000) >> 8
 
     return new_tag
+
+
+def legacy_parse_tag(tag):
+    t = re.search(r"(?P<file_type>[CT])(?P<file_number>\d{1,3})"
+                  r"(:)(?P<element_number>\d{1,3})"
+                  r"(.)(?P<sub_element>ACC|PRE|EN|DN|TT|CU|CD|DN|OV|UN|UA)", tag, flags=re.IGNORECASE)
+    if t:
+        if (1 <= int(t.group('file_number')) <= 255) \
+                and (0 <= int(t.group('element_number')) <= 255):
+            return True, t.group(0), {'file_type': t.group('file_type').upper(),
+                                      'file_number': t.group('file_number'),
+                                      'element_number': t.group('element_number'),
+                                      'sub_element': PCCC_CT[t.group('sub_element').upper()],
+                                      'read_func': b'\xa2',
+                                      'write_func': b'\xab',
+                                      'address_field': 3}
+
+    t = re.search(r"(?P<file_type>[LFBN])(?P<file_number>\d{1,3})"
+                  r"(:)(?P<element_number>\d{1,3})"
+                  r"(/(?P<sub_element>\d{1,2}))?",
+                  tag, flags=re.IGNORECASE)
+    if t:
+        if t.group('sub_element') is not None:
+            if (1 <= int(t.group('file_number')) <= 255) \
+                    and (0 <= int(t.group('element_number')) <= 255) \
+                    and (0 <= int(t.group('sub_element')) <= 15):
+
+                return True, t.group(0), {'file_type': t.group('file_type').upper(),
+                                          'file_number': t.group('file_number'),
+                                          'element_number': t.group('element_number'),
+                                          'sub_element': t.group('sub_element'),
+                                          'read_func': b'\xa2',
+                                          'write_func': b'\xab',
+                                          'address_field': 3}
+        else:
+            if (1 <= int(t.group('file_number')) <= 255) \
+                    and (0 <= int(t.group('element_number')) <= 255):
+
+                return True, t.group(0), {'file_type': t.group('file_type').upper(),
+                                          'file_number': t.group('file_number'),
+                                          'element_number': t.group('element_number'),
+                                          'sub_element': t.group('sub_element'),
+                                          'read_func': b'\xa2',
+                                          'write_func': b'\xab',
+                                          'address_field': 2}
+
+    t = re.search(r"(?P<file_type>[IO])(:)(?P<file_number>\d{1,3})"
+                  r"(.)(?P<element_number>\d{1,3})"
+                  r"(/(?P<sub_element>\d{1,2}))?", tag, flags=re.IGNORECASE)
+    if t:
+        if t.group('sub_element') is not None:
+            if (0 <= int(t.group('file_number')) <= 255) \
+                    and (0 <= int(t.group('element_number')) <= 255) \
+                    and (0 <= int(t.group('sub_element')) <= 15):
+
+                return True, t.group(0), {'file_type': t.group('file_type').upper(),
+                                          'file_number': t.group('file_number'),
+                                          'element_number': t.group('element_number'),
+                                          'sub_element': t.group('sub_element'),
+                                          'read_func': b'\xa2',
+                                          'write_func': b'\xab',
+                                          'address_field': 3}
+        else:
+            if (0 <= int(t.group('file_number')) <= 255) \
+                    and (0 <= int(t.group('element_number')) <= 255):
+
+                return True, t.group(0), {'file_type': t.group('file_type').upper(),
+                                          'file_number': t.group('file_number'),
+                                          'element_number': t.group('element_number'),
+                                          'read_func': b'\xa2',
+                                          'write_func': b'\xab',
+                                          'address_field': 2}
+
+    t = re.search(r"(?P<file_type>S)"
+                  r"(:)(?P<element_number>\d{1,3})"
+                  r"(/(?P<sub_element>\d{1,2}))?", tag, flags=re.IGNORECASE)
+    if t:
+        if t.group('sub_element') is not None:
+            if (0 <= int(t.group('element_number')) <= 255) \
+                    and (0 <= int(t.group('sub_element')) <= 15):
+                return True, t.group(0), {'file_type': t.group('file_type').upper(),
+                                          'file_number': '2',
+                                          'element_number': t.group('element_number'),
+                                          'sub_element': t.group('sub_element'),
+                                          'read_func': b'\xa2',
+                                          'write_func': b'\xab',
+                                          'address_field': 3}
+        else:
+            if 0 <= int(t.group('element_number')) <= 255:
+                return True, t.group(0), {'file_type':  t.group('file_type').upper(),
+                                          'file_number': '2',
+                                          'element_number': t.group('element_number'),
+                                          'read_func': b'\xa2',
+                                          'write_func': b'\xab',
+                                          'address_field': 2}
+
+    t = re.search(r"(?P<file_type>B)(?P<file_number>\d{1,3})"
+                  r"(/)(?P<element_number>\d{1,4})",
+                  tag, flags=re.IGNORECASE)
+    if t:
+        if (1 <= int(t.group('file_number')) <= 255) \
+                and (0 <= int(t.group('element_number')) <= 4095):
+            bit_position = int(t.group('element_number'))
+            element_number = bit_position / 16
+            sub_element = bit_position - (element_number * 16)
+            return True, t.group(0), {'file_type': t.group('file_type').upper(),
+                                      'file_number': t.group('file_number'),
+                                      'element_number': element_number,
+                                      'sub_element': sub_element,
+                                      'read_func': b'\xa2',
+                                      'write_func': b'\xab',
+                                      'address_field': 3}
+
+    return False, tag

@@ -28,7 +28,7 @@ import logging
 
 from pycomm3.custom_exceptions import CommError, DataError
 from pycomm3.utils.cip_base import CipBase, with_forward_open, ReturnType
-from pycomm3.utils.utils import _parse_plc_info
+from pycomm3.utils.utils import _parse_plc_info, legacy_parse_tag
 from pycomm3.const import ClassCode
 from pycomm3.tag import Tag
 
@@ -42,8 +42,6 @@ class SLCDriver(CipBase):
         self.init_tags = init_tags
         super().__init__(path=path, legacy=True)
         self.attribs['extended forward open'] = False
-
-        self._forward_open()
     
     def __enter__(self):
         self.open()
@@ -75,7 +73,7 @@ class SLCDriver(CipBase):
         :return: a single or list of ``Tag`` objects
         """
 
-        parsed_requests = self._parse_requested_tags(tags)
+        parsed_requests = legacy_parse_tag(tags)
         requests = self._read_build_requests(parsed_requests)
         read_results = self._send_requests(requests)
 
